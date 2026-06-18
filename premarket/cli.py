@@ -79,8 +79,16 @@ def _cmd_backtest(args: argparse.Namespace) -> int:
     if study.empty:
         print("No usable trading days in that range.")
         return 1
-    result = gap_strategy(study, gap_threshold=args.gap)
-    print(f"Pre-market gap strategy on {args.symbol} (|gap| >= {args.gap}%):")
+    result = gap_strategy(
+        study,
+        gap_threshold=args.gap,
+        mode=args.mode,
+        fees_bps=args.fees_bps,
+        slippage_bps=args.slippage_bps,
+        capital_fraction=args.capital_fraction,
+    )
+    print(f"Pre-market gap strategy on {args.symbol} "
+          f"(mode={args.mode}, |gap| >= {args.gap}%):")
     for k, v in result.items():
         print(f"  {k}: {v}")
     if args.out:
@@ -123,6 +131,12 @@ def main(argv: list[str] | None = None) -> int:
     b.add_argument("--months", nargs="*", help="explicit months e.g. 2026-05 2026-06")
     b.add_argument("--interval", default="5min", choices=["1min", "5min", "15min", "30min", "60min"])
     b.add_argument("--gap", type=float, default=2.0, help="|gap %%| threshold to trade")
+    b.add_argument("--mode", default="momentum", choices=["momentum", "fade"],
+                   help="momentum=follow the gap, fade=bet on reversion")
+    b.add_argument("--fees-bps", type=float, default=0.0, help="fees per side in bps")
+    b.add_argument("--slippage-bps", type=float, default=0.0, help="slippage per side in bps")
+    b.add_argument("--capital-fraction", type=float, default=1.0,
+                   help="share of book per trade for the compounded figure (0-1)")
     b.add_argument("-o", "--out", help="write the per-day study to CSV")
     b.set_defaults(func=_cmd_backtest)
 

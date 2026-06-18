@@ -69,11 +69,18 @@ def main() -> None:
     print(f"Daily study: {len(study)} trading days\n")
     print(study.head(8).to_string(index=False))
 
-    print("\n--- gap_strategy across thresholds ---")
+    print("\n--- momentum vs fade @ |gap|>=2%, 5bps fees + 5bps slippage/side ---")
+    for mode in ("momentum", "fade"):
+        r = gap_strategy(study, gap_threshold=2.0, mode=mode, fees_bps=5, slippage_bps=5)
+        print(f"{mode:>8}  trades={r['trades']:>3}  win%={r['win_rate_pct']:>6}"
+              f"  net_avg%={r['avg_ret_pct']:>7}  net_total%={r['total_ret_pct']:>8}"
+              f"  gross_total%={r['gross_total_ret_pct']:>8}  compounded%={r['compounded_ret_pct']:>8}")
+
+    print("\n--- momentum across thresholds (gross, no costs) ---")
     for thr in (1.0, 2.0, 3.0):
         r = gap_strategy(study, gap_threshold=thr)
-        print(f"|gap|>={thr}%  trades={r['trades']:>3}  win%={r.get('win_rate_pct'):>6}"
-              f"  avg%={r.get('avg_ret_pct'):>7}  total%={r.get('total_ret_pct'):>8}")
+        print(f"|gap|>={thr}%  trades={r['trades']:>3}  win%={r['win_rate_pct']:>6}"
+              f"  avg%={r['avg_ret_pct']:>7}  total%={r['total_ret_pct']:>8}")
 
     print("\n--- scan_premarket (same synthetic feed) ---")
     print(scan_premarket(["DEMO"], interval="5min", client=client).to_string(index=False))

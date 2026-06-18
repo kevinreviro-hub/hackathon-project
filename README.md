@@ -88,17 +88,28 @@ threshold, go **long on a gap-up / short on a gap-down at the open, exit at the
 close**. Uses the same feed (PM + regular bars come together).
 
 ```bash
-python -m premarket.cli backtest TSLA --start 2026-01-01 --end 2026-06-17 --gap 2 -o data/tsla_study.csv
+# momentum (default), with realistic costs
+python -m premarket.cli backtest TSLA --start 2026-01-01 --end 2026-06-17 \
+    --gap 2 --fees-bps 1 --slippage-bps 5 -o data/tsla_study.csv
+
+# fade variant: bet the gap reverts
+python -m premarket.cli backtest TSLA --start 2026-01-01 --end 2026-06-17 --gap 2 --mode fade
 ```
 
 ```
-Pre-market gap strategy on TSLA (|gap| >= 2.0%):
+Pre-market gap strategy on TSLA (mode=momentum, |gap| >= 2.0%):
   trades: 41
   win_rate_pct: 58.54
-  avg_ret_pct: 0.31
+  cost_per_trade_pct: 0.12        # round trip = 2 x (fees + slippage) bps
+  avg_ret_pct: 0.31               # net of costs
   total_ret_pct: 12.71
+  gross_total_ret_pct: 17.63
+  compounded_ret_pct: 13.40       # sequenced through equity
   ...
 ```
+
+Flags: `--mode {momentum,fade}`, `--fees-bps`, `--slippage-bps` (both per side),
+`--capital-fraction` (share of book per trade, for the compounded figure).
 
 ```python
 from datetime import date

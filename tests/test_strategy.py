@@ -46,13 +46,31 @@ def test_build_daily_study():
     assert round(row["day_ret_pct"], 3) == 2.857
 
 
-def test_gap_strategy_long_win():
+def test_gap_strategy_momentum_long_win():
     study = build_daily_study("TEST", months=["2026-06"], interval="5min", client=FakeClient(PAYLOAD))
     res = gap_strategy(study, gap_threshold=2.0)
     assert res["trades"] == 1
-    assert res["long_trades"] == 1
+    assert res["gap_up_days"] == 1
     assert res["win_rate_pct"] == 100.0
     assert round(res["avg_ret_pct"], 3) == 2.857
+
+
+def test_gap_strategy_fade_is_inverse_of_momentum():
+    study = build_daily_study("TEST", months=["2026-06"], interval="5min", client=FakeClient(PAYLOAD))
+    mom = gap_strategy(study, gap_threshold=2.0, mode="momentum")
+    fade = gap_strategy(study, gap_threshold=2.0, mode="fade")
+    # same single gap-up day, opposite sign, no costs
+    assert round(mom["total_ret_pct"] + fade["total_ret_pct"], 6) == 0.0
+    assert fade["win_rate_pct"] == 0.0
+
+
+def test_gap_strategy_costs_reduce_return():
+    study = build_daily_study("TEST", months=["2026-06"], interval="5min", client=FakeClient(PAYLOAD))
+    gross = gap_strategy(study, gap_threshold=2.0)
+    net = gap_strategy(study, gap_threshold=2.0, fees_bps=5, slippage_bps=5)
+    # round trip cost = 2 * (5+5) bps = 0.20%
+    assert round(net["cost_per_trade_pct"], 4) == 0.20
+    assert round(gross["total_ret_pct"] - net["total_ret_pct"], 4) == 0.20
 
 
 def test_gap_strategy_threshold_filters_out():

@@ -96,33 +96,68 @@ def build_daily_study(
     return pd.DataFrame(rows)
 
 
-def gap_strategy(study: pd.DataFrame, *, gap_threshold: float = 2.0) -> dict:
-    """Backtest: on |gap| >= threshold, take the regular session in the gap's
-    direction (long gap-up, short gap-down), exit at close. Returns summary stats.
+def gap_strategy(
+    study: pd.DataFrame,
+    *,
+    gap_threshold: float = 2.0,
+    mode: str = "momentum",
+    fees_bps: float = 0.0,
+    slippage_bps: float = 0.0,
+    capital_fraction: float = 1.0,
+) -> dict:
+    """Backtest the open->close move on days where |gap| >= threshold.
 
-    Returns are simple, un-compounded percentage points (one trade per day max).
+    mode:
+      "momentum" - long gap-up, short gap-down (bet the gap continues)
+      "fade"     - short gap-up, long gap-down (bet the gap reverts)
+
+    Costs: `fees_bps` + `slippage_bps` are charged per side, so a round trip
+    deducts 2 x (fees_bps + slippage_bps) basis points from each trade's return
+    (1 bp = 0.01%). `capital_fraction` (0-1) is the share of the book put on per
+    trade, used only for the compounded equity figure.
+
+    Per-trade returns are un-compounded percentage points; `compounded_ret_pct`
+    sequences them through equity at the given capital fraction.
     """
+    if mode not in ("momentum", "fade"):
+        raise ValueError("mode must be 'momentum' or 'fade'")
     if study.empty:
-        return {"trades": 0}
+        return {"trades": 0, "mode": mode}
 
-    longs = study[study["gap_pct"] >= gap_threshold].copy()
-    longs["trade_ret"] = longs["day_ret_pct"]               # buy open, sell close
-    shorts = study[study["gap_pct"] <= -gap_threshold].copy()
-    shorts["trade_ret"] = -shorts["day_ret_pct"]            # short open, cover close
+    longs_up = study[study["gap_pct"] >= gap_threshold].copy()
+    shorts_dn = study[study["gap_pct"] <= -gap_threshold].copy()
+    sign = 1.0 if mode == "momentum" else -1.0
 
-    trades = pd.concat([longs, shorts], ignore_index=True)
+    longs_up["trade_ret"] = sign * longs_up["day_ret_pct"]    # gap-up day
+    shorts_dn["trade_ret"] = -sign * shorts_dn["day_ret_pct"] # gap-down day
+    trades = pd.concat([longs_up, shorts_dn], ignore_index=True)
     if trades.empty:
-        return {"trades": 0, "gap_threshold": gap_threshold}
+        return {"trades": 0, "mode": mode, "gap_threshold": gap_threshold}
 
-    wins = (trades["trade_ret"] > 0).sum()
+    cost_pct = 2.0 * (fees_bps + slippage_bps) / 100.0        # bps -> pct, round trip
+    trades["gross_ret"] = trades["trade_ret"]
+    trades["net_ret"] = trades["trade_ret"] - cost_pct
+    trades = trades.sort_values("date")
+
+    equity = 1.0
+    for r in trades["net_ret"]:
+        equity *= (1.0 + capital_fraction * r / 100.0)
+
+    wins = (trades["net_ret"] > 0).sum()
     return {
         "trades": int(len(trades)),
+        "mode": mode,
         "gap_threshold": gap_threshold,
-        "long_trades": int(len(longs)),
-        "short_trades": int(len(shorts)),
+        "fees_bps": fees_bps,
+        "slippage_bps": slippage_bps,
+        "cost_per_trade_pct": round(cost_pct, 4),
+        "gap_up_days": int(len(longs_up)),
+        "gap_down_days": int(len(shorts_dn)),
         "win_rate_pct": round(wins / len(trades) * 100.0, 2),
-        "avg_ret_pct": round(float(trades["trade_ret"].mean()), 4),
-        "total_ret_pct": round(float(trades["trade_ret"].sum()), 4),
-        "best_pct": round(float(trades["trade_ret"].max()), 4),
-        "worst_pct": round(float(trades["trade_ret"].min()), 4),
+        "avg_ret_pct": round(float(trades["net_ret"].mean()), 4),
+        "total_ret_pct": round(float(trades["net_ret"].sum()), 4),
+        "gross_total_ret_pct": round(float(trades["gross_ret"].sum()), 4),
+        "compounded_ret_pct": round((equity - 1.0) * 100.0, 4),
+        "best_pct": round(float(trades["net_ret"].max()), 4),
+        "worst_pct": round(float(trades["net_ret"].min()), 4),
     }
