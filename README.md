@@ -111,6 +111,20 @@ print(gap_strategy(study, gap_threshold=2.0))
 > Returns are simple, un-compounded percentage points (max one trade/day), no
 > fees/slippage — it's a signal sniff-test, not a production backtest.
 
+### Try it without an API key
+
+`examples/demo_backtest.py` runs the full backtest path on a synthetic feed (with
+a gap→trend edge baked in), so you can see the pipeline work before wiring a key:
+
+```bash
+python examples/demo_backtest.py
+```
+
+> Note: some sandboxed environments block outbound access to
+> `www.alphavantage.co`. If you hit `Host not in allowlist`, add the host to your
+> egress settings or run locally — then swap the demo's fake client for
+> `build_daily_study(symbol, start=..., end=...)`.
+
 ## Tests
 
 ```bash
