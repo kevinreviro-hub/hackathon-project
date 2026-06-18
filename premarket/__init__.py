@@ -8,6 +8,8 @@ from .config import ET, PREMARKET_OPEN, PREMARKET_CLOSE, Settings
 from .client import AlphaVantageClient, AlphaVantageError
 from .historical import fetch_premarket_history
 from .live import LiveQuote, monitor_premarket
+from .scanner import scan_premarket
+from .backtest import build_daily_study, gap_strategy
 
 __all__ = [
     "ET",
@@ -19,4 +21,7 @@ __all__ = [
     "fetch_premarket_history",
     "LiveQuote",
     "monitor_premarket",
+    "scan_premarket",
+    "build_daily_study",
+    "gap_strategy",
 ]

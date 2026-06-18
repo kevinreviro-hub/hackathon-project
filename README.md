@@ -65,6 +65,52 @@ def on_quote(q: LiveQuote):
 monitor_premarket(["AAPL", "TSLA"], poll_seconds=60, on_quote=on_quote)
 ```
 
+## Gap scanner
+
+Rank a watchlist by **|gap %| × pre-market volume** — surfaces names that are
+gapping *and* actually trading (a gap on light volume is noise):
+
+```bash
+python -m premarket.cli scan AAPL TSLA NVDA AMD META -o data/scan.csv
+```
+
+```
+symbol   price  prev_close  gap_pct  premarket_volume      score
+  NVDA  130.50      125.00     4.40            850000  3740000.0
+   AMD   98.20       96.00     2.29            300000   687000.0
+  ...
+```
+
+## Gap backtest
+
+Tests whether the pre-market gap predicts the regular session: on `|gap| ≥`
+threshold, go **long on a gap-up / short on a gap-down at the open, exit at the
+close**. Uses the same feed (PM + regular bars come together).
+
+```bash
+python -m premarket.cli backtest TSLA --start 2026-01-01 --end 2026-06-17 --gap 2 -o data/tsla_study.csv
+```
+
+```
+Pre-market gap strategy on TSLA (|gap| >= 2.0%):
+  trades: 41
+  win_rate_pct: 58.54
+  avg_ret_pct: 0.31
+  total_ret_pct: 12.71
+  ...
+```
+
+```python
+from datetime import date
+from premarket import build_daily_study, gap_strategy
+
+study = build_daily_study("TSLA", start=date(2026, 1, 1), end=date(2026, 6, 17))
+print(gap_strategy(study, gap_threshold=2.0))
+```
+
+> Returns are simple, un-compounded percentage points (max one trade/day), no
+> fees/slippage — it's a signal sniff-test, not a production backtest.
+
 ## Tests
 
 ```bash
@@ -81,7 +127,10 @@ premarket/
   client.py      Alpha Vantage HTTP client, rate-limit aware
   historical.py  fetch_premarket_history() -> DataFrame / CSV / Parquet
   live.py        monitor_premarket() live poller + gap signal
-  cli.py         `python -m premarket.cli history|live`
+  scanner.py     scan_premarket() watchlist ranking by gap x volume
+  backtest.py    build_daily_study() + gap_strategy() gap backtest
+  cli.py         `python -m premarket.cli history|live|scan|backtest`
 tests/
-  test_premarket.py
+  test_premarket.py   session-window math
+  test_strategy.py    scanner + backtest
 ```
