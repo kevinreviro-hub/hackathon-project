@@ -2,11 +2,11 @@ import pandas as pd
 import numpy as np
 import os
 
-PANEL = os.path.join(os.path.dirname(__file__), "..", "data", "panel.parquet")
+PANEL = os.path.join(os.path.dirname(__file__), "..", "data", "panel.pkl")
 HORIZONS = [5, 10, 21, 42, 63]
 
 def load_panel():
-    return pd.read_parquet(PANEL)
+    return pd.read_pickle(PANEL)
 
 def regime_label(date):
     if date < pd.Timestamp("2020-02-20"):
@@ -104,7 +104,7 @@ def main():
         if len(e):
             print(f"{r:25s} n={len(e):4d}  mean21d={e.mean()*100:6.2f}%  win={  (e>0).mean()*100:5.1f}%")
 
-    panel.to_parquet(os.path.join(os.path.dirname(__file__), "..", "data", "panel_with_signals.parquet"))
+    panel.to_pickle(os.path.join(os.path.dirname(__file__), "..", "data", "panel_with_signals.pkl"))
 
 if __name__ == "__main__":
     main()

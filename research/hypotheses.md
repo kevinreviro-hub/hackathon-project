@@ -29,10 +29,44 @@
 
 ## Status
 
-- [ ] Run H1 event study (long-the-turn, RSI filter)
-- [ ] Run H2 event study (short-the-turn)
-- [ ] Run H3 event study (pullback continuation)
-- [ ] Regime split
-- [ ] Build position-managed backtest (entries/exits/sizing/stops) for the best-surviving hypothesis
-- [ ] Portfolio-level CAGR/Sharpe/MaxDD with capital idle-time accounting
-- [ ] Satellite strategy design if idle capital confirmed as binding constraint
+- [x] Run H1 event study (long-the-turn, RSI filter)
+- [x] Run H2 event study (short-the-turn)
+- [x] Run H3 event study (pullback continuation)
+- [x] Regime split
+- [x] Significance testing with deduplication (avoid pseudo-replication)
+- [x] Refinements: market-regime filter, deeper-underperformance threshold
+- [ ] Position-managed backtest — **not started, see verdict below**
+- [ ] Satellite strategy — **deferred, see verdict below**
+
+## Round 1 results (15 large-cap Nifty50 names, 2019-2024, Mansfield-style RS21/RS55, Wilder RSI14)
+
+**Critical methodology fix:** initial event counts (H1=145, H3=709 "signal-days") were inflated by counting every day a crossover condition held, not independent episodes. A stock that just crossed up stays "post-crossover" for several days, so naive forward-return stats on raw signal-days are pseudo-replicated — they look more significant than they are. After deduplicating to independent episodes (≥15 trading days apart) and running Welch's t-test against the unconditional (all-days, all-stocks) baseline:
+
+| Hypothesis | n (episodes) | 21d excess vs baseline | p-value (21d) | 63d excess | p-value (63d) |
+|---|---|---|---|---|---|
+| H1 (underperform→RS21 x-up RS55, RSI<50) | 144 | +0.38% | 0.63 | +1.68% | 0.28 |
+| H2 (RS21 x-dn RS55, RSI<50 — short) | 36 | **-0.57%** | 0.72 | +1.47% | 0.55 |
+| H3 (RS21>RS55, RSI dips & re-crosses 50) | 396 | +0.67% | 0.13 | +0.64% | 0.44 |
+
+**None of these clear the bar for statistical significance (p<0.05) at any horizon, on this universe.** Adding a market-regime filter (Nifty above its own 200-day SMA) or requiring "deep" underperformance (RS55 < -5 before the turn, not just <0) shrinks the sample further (n=23-109) and does not improve p-values — if anything it makes some excess returns turn negative.
+
+**Verdict on the user's specific questions:**
+- *"RS21 crosses below RS55 when RSI<50 → short"* — **not supported**. Excess return is negative or indistinguishable from zero at every horizon we tested (n=36, p=0.41-0.77). Blind shorting on this signal in large-cap NSE names would not be expected to make money net of the borrow/derivative-financing cost a real short requires.
+- *"RS21>RS55, wait for RSI to dip and cross back above 50"* — this is the largest, cleanest-looking sample (399 independent episodes) and the most promising of the three, but after correcting for pseudo-replication it is **not statistically significant either** (p=0.13 at 21d, the horizon where it looked best).
+
+**Why the null result is plausible, not just "bad luck":** these are 15 of the most liquid, heavily-covered, heavily-arbed large-cap names in India. Their ratio-to-index series has low idiosyncratic dispersion — RS21/RS55 oscillate in a narrow band, so "underperformance" and "crossovers" are mostly noise around a ratio that's anchored close to 1 by index arbitrage and ETF flows. Classic relative-strength reversal effects in the academic and practitioner literature are strongest in **less efficiently-priced names** (mid/small-cap, lower analyst coverage, higher idiosyncratic vol) — exactly where this large-cap-only universe has no power to detect anything.
+
+## Round 2 hypotheses (before committing more capital/research time)
+
+**H4:** The RS21/RS55/RSI crossover effect, if real, lives in **mid/small-cap NSE names**, not large caps, because that's where dispersion vs. the index is large enough for a "turning point" to be economically meaningful rather than noise. Test on a Nifty Midcap150/Smallcap250 universe (point-in-time membership, not survivorship-biased hand-picks) before concluding the strategy is dead.
+
+**H5:** The strategy may have edge as a **relative-value/pairs construct** rather than a directional one — e.g., long the RS-turning-up underperformer vs. short a RS-turning-down sector peer, removing market beta entirely so the small excess-return signal isn't drowned out by broad index drift (which is what's happening above: baseline win rate is already 53-62% because Nifty itself trended up most of 2019-24).
+
+**H6:** Our reconstructed RS21/RS55 (Mansfield oscillator: ratio vs SMA(ratio,n)) may not match the exact smoothing/lookback convention in the internal `stockedge_technical_indicators`/`ratio_charts_data` tables. Before discarding the idea, this needs to be re-tested against the real internal indicator values once DB access is available — a different smoothing constant changes signal timing and could change the conclusion.
+
+## Recommendation to the team
+
+1. **Do not proceed to a position-managed backtest, portfolio CAGR/Sharpe build-out, or satellite-strategy capital commitment on this signal as currently specified.** The honest finding is a null result on a reasonably-sized, multiply-cross-checked sample (large-cap NSE, 2019-24). Building elaborate stop-loss/sizing machinery on top of a signal with no detectable raw edge would be polishing noise — the classic quant-research failure mode of "the backtest looks great because we kept tuning the rules until it did."
+2. **Specifically reject the "use 10% pa pledged-capital financing as a satellite strategy" plan for this signal.** Margin financing cost is a certain drag (10% pa); deploying it against a signal whose excess return is statistically indistinguishable from zero is negative expected value by construction, regardless of win rate, because the win rate observed here is mostly the market's own positive drift, not the signal.
+3. **Before any further work, get access to the real `market_regime`, `ratio_charts_data`, `stockedge_technical_indicators` tables** (H6) and re-run this exact test — if the real internal indicators behave differently from our reconstruction, this conclusion could change.
+4. **In parallel, test H4/H5** (broader/midcap universe, market-neutral pairs construction) since those are the two changes most likely to surface real edge if the underlying intuition (mean-reversion in relative strength) has any truth to it — it's far more plausible in less efficient names or with beta removed than in large-cap absolute-return form.

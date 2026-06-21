@@ -45,6 +45,6 @@ if __name__ == "__main__":
     for s in get_universe():
         out.append(build_indicators(s, idx))
     panel = pd.concat(out)
-    panel.to_parquet(os.path.join(os.path.dirname(__file__), "..", "data", "panel.parquet"))
+    panel.to_pickle(os.path.join(os.path.dirname(__file__), "..", "data", "panel.pkl"))
     print(panel.shape, panel["symbol"].nunique())
     print(panel.groupby("symbol").size())
